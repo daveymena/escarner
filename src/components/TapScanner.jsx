@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 export default function TapScanner({ onDocumentCapture, disabled = false }) {
@@ -8,6 +8,8 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
   const [isScanning, setIsScanning] = useState(false);
   const [ocrText, setOcrText] = useState('');
   const [qrResult, setQrResult] = useState('');
+  const [permissions, setPermissions] = useState(null);
+  const [showPermissionGuide, setShowPermissionGuide] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -51,6 +53,45 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
     { id: 'color', name: 'Color', icon: '🎨' }
   ];
 
+  // Verificar permisos al cargar el componente
+  useEffect(() => {
+    checkPermissions();
+  }, []);
+
+  const checkPermissions = async () => {
+    try {
+      if (window.Capacitor) {
+        // En móvil, usar Capacitor
+        const cameraPerm = await Camera.requestPermissions();
+        setPermissions(cameraPerm);
+        console.log('Permisos de Capacitor:', cameraPerm);
+      } else {
+        // En web, verificar getUserMedia
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            // Intentar acceder para verificar permisos
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream.getTracks().forEach(track => track.stop()); // Detener el stream inmediatamente
+            setPermissions({ camera: 'granted' });
+          } catch (error) {
+            if (error.name === 'NotAllowedError') {
+              setPermissions({ camera: 'denied' });
+            } else if (error.name === 'NotFoundError') {
+              setPermissions({ camera: 'not-available' });
+            } else {
+              setPermissions({ camera: 'unknown' });
+            }
+          }
+        } else {
+          setPermissions({ camera: 'not-supported' });
+        }
+      }
+    } catch (error) {
+      console.error('Error verificando permisos:', error);
+      setPermissions({ camera: 'error' });
+    }
+  };
+
   const startScan = async (mode) => {
     try {
       setIsScanning(true);
@@ -58,37 +99,71 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
       setOcrText('');
       setQrResult('');
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      });
+      // Verificar permisos primero
+      try {
+        await Camera.requestPermissions();
+      } catch (permError) {
+        console.warn('Error solicitando permisos:', permError);
+      }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+      // Usar getUserMedia como fallback para web
+      if (!window.Capacitor) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          }
+        });
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
       }
 
     } catch (error) {
       console.error('Error iniciando escaneo:', error);
       setIsScanning(false);
-      alert('Error accediendo a la cámara. Verifica permisos.');
+
+      if (error.message?.includes('Permission denied') || error.name === 'NotAllowedError') {
+        alert('❌ Permiso denegado para acceder a la cámara.\n\n🔧 Solución:\n1. Permite el acceso a la cámara en tu navegador/dispositivo\n2. Recarga la página e intenta de nuevo\n3. Verifica que ninguna otra aplicación esté usando la cámara');
+      } else if (error.message?.includes('NotFoundError') || error.name === 'DevicesNotFoundError') {
+        alert('❌ No se encontró ninguna cámara.\n\n🔧 Solución:\n1. Verifica que tu dispositivo tenga cámara\n2. Asegúrate de que la cámara no esté siendo usada por otra aplicación');
+      } else {
+        alert(`❌ Error accediendo a la cámara: ${error.message || 'Error desconocido'}\n\n🔧 Solución:\n1. Recarga la página\n2. Verifica permisos del navegador\n3. Reinicia tu navegador/dispositivo`);
+      }
     }
   };
 
   const captureImage = async () => {
     try {
+      // Verificar permisos antes de capturar
+      const permissions = await Camera.requestPermissions();
+      console.log('Permisos de cámara:', permissions);
+
+      if (permissions.camera !== 'granted') {
+        alert('❌ Se requieren permisos de cámara para usar esta función.\n\n🔧 Solución:\n1. Permite el acceso a la cámara\n2. Recarga la página\n3. Asegúrate de que ninguna otra app use la cámara');
+        setIsScanning(false);
+        return;
+      }
+
       const photo = await Camera.getPhoto({
         resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
         quality: 90,
         allowEditing: false,
-        saveToGallery: false
+        saveToGallery: false,
+        width: 1920,
+        height: 1080,
+        correctOrientation: true
       });
 
       if (photo.webPath) {
+        console.log('Imagen capturada exitosamente:', photo.webPath);
+
+        // Procesar la imagen
         const result = await processImage(photo.webPath, currentMode);
+        console.log('Imagen procesada:', result);
 
         if (currentMode === 'qr') {
           setQrResult(result.text || 'Código QR detectado');
@@ -103,7 +178,8 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
             metadata: {
               timestamp: new Date().toISOString(),
               mode: currentMode,
-              hasText: !!result.text
+              hasText: !!result.text,
+              size: photo.size || 'unknown'
             }
           });
         }
@@ -112,7 +188,19 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
       }
     } catch (error) {
       console.error('Error capturando imagen:', error);
-      alert('Error capturando imagen. Inténtalo de nuevo.');
+      setIsScanning(false);
+
+      // Manejo específico de errores
+      if (error.message?.includes('cancelled') || error.code === 'USER_CANCELLED') {
+        // El usuario canceló, no mostrar error
+        return;
+      } else if (error.message?.includes('Permission') || error.name === 'PermissionError') {
+        alert('❌ Error de permisos de cámara.\n\n🔧 Solución:\n1. Permite el acceso a la cámara en la configuración\n2. Recarga la página\n3. Asegúrate de que la cámara no esté en uso');
+      } else if (error.message?.includes('not available') || error.name === 'NotFoundError') {
+        alert('❌ La cámara no está disponible.\n\n🔧 Solución:\n1. Verifica que tu dispositivo tenga cámara\n2. Cierra otras aplicaciones que usen la cámara\n3. Reinicia tu dispositivo');
+      } else {
+        alert(`❌ Error capturando imagen: ${error.message || 'Error desconocido'}\n\n🔧 Solución:\n1. Verifica permisos de cámara\n2. Asegúrate de que la cámara funcione\n3. Reinicia la aplicación`);
+      }
     }
   };
 
@@ -180,6 +268,69 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
           Escáner profesional con IA integrada
         </p>
       </div>
+
+      {/* Guía de permisos - Solo mostrar si hay problemas */}
+      {permissions && permissions.camera !== 'granted' && (
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-200 dark:border-red-700 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl flex items-center justify-center text-white">
+              ⚠️
+            </div>
+            <div>
+              <h4 className="font-bold text-red-800 dark:text-red-200 text-lg">
+                Permisos de Cámara Requeridos
+              </h4>
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {permissions.camera === 'denied' && 'La aplicación necesita acceso a la cámara para funcionar'}
+                {permissions.camera === 'not-available' && 'No se detectó ninguna cámara en tu dispositivo'}
+                {permissions.camera === 'not-supported' && 'Tu navegador no soporta acceso a la cámara'}
+                {permissions.camera === 'unknown' && 'Error desconocido verificando permisos de cámara'}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={checkPermissions}
+              className="w-full px-4 py-3 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 text-white rounded-xl font-semibold transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center space-x-2"
+            >
+              <span>🔄</span>
+              <span>Verificar Permisos</span>
+            </button>
+
+            <button
+              onClick={() => setShowPermissionGuide(!showPermissionGuide)}
+              className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-semibold transition-all duration-300"
+            >
+              {showPermissionGuide ? 'Ocultar' : 'Mostrar'} Guía de Solución
+            </button>
+
+            {showPermissionGuide && (
+              <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 border border-red-100 dark:border-red-800">
+                <h5 className="font-semibold text-red-800 dark:text-red-200 mb-2">🔧 Guía de Solución:</h5>
+                <div className="text-sm text-red-700 dark:text-red-300 space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-red-500 mt-0.5">1.</span>
+                    <span>Permite el acceso a la cámara cuando el navegador lo solicite</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-red-500 mt-0.5">2.</span>
+                    <span>En móviles: Ve a Configuración {'>'} Aplicaciones {'>'} TapScanner Pro {'>'} Permisos {'>'} Cámara</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-red-500 mt-0.5">3.</span>
+                    <span>Recarga la página después de otorgar permisos</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="text-red-500 mt-0.5">4.</span>
+                    <span>Asegúrate de que ninguna otra aplicación esté usando la cámara</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Selector de modos de escaneo - Diseño mejorado */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -258,12 +409,12 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
       <div className="relative">
         <button
           onClick={() => startScan(currentMode)}
-          disabled={disabled || isScanning}
+          disabled={disabled || isScanning || (permissions && permissions.camera !== 'granted')}
           className={`
             group relative w-full px-10 py-6 rounded-2xl font-bold text-white text-xl
             transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]
             shadow-2xl hover:shadow-3xl overflow-hidden
-            ${disabled || isScanning
+            ${disabled || isScanning || (permissions && permissions.camera !== 'granted')
               ? 'bg-gray-400 cursor-not-allowed opacity-50'
               : 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600'
             }
@@ -279,6 +430,14 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
                 <div className="absolute inset-0 w-6 h-6 border-3 border-transparent border-t-purple-300 rounded-full animate-spin"></div>
               </div>
               <span className="text-lg">Iniciando cámara...</span>
+            </div>
+          ) : permissions && permissions.camera !== 'granted' ? (
+            <div className="flex items-center justify-center space-x-4">
+              <div className="text-2xl">⚠️</div>
+              <div className="text-center">
+                <div className="text-lg">Permisos Requeridos</div>
+                <div className="text-sm opacity-80">Verifica permisos de cámara</div>
+              </div>
             </div>
           ) : (
             <div className="flex items-center justify-center space-x-4">
