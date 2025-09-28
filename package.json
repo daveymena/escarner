@@ -15,10 +15,12 @@
     "@capacitor/filesystem": "^7.1.4",
     "@capacitor/share": "^7.0.2",
     "html2canvas": "^1.4.1",
+    "image-js": "^1.0.0",
     "jspdf": "^3.0.3",
     "next": "15.5.4",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-image-crop": "^11.0.10"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

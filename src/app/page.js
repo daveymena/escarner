@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ScannerButton from '../components/ScannerButton';
+import SmartScanner from '../components/SmartScanner';
+import BatchScanner from '../components/BatchScanner';
 import ImageGallery from '../components/ImageGallery';
 import PDFGenerator from '../components/PDFGenerator';
 import ImageProcessor from '../components/ImageProcessor';
@@ -32,9 +33,15 @@ export default function Home() {
     }
   };
 
-  const handleImageCapture = (newImage) => {
-    // Abrir el procesador de imágenes para edición
-    setProcessingImage(newImage);
+  const handleDocumentCapture = (smartDocument) => {
+    // El SmartScanner ya procesa automáticamente la imagen
+    // Solo agregamos el documento inteligente a la galería
+    setScannedImages(prev => [...prev, smartDocument]);
+  };
+
+  const handleBatchComplete = (batchDocuments) => {
+    // Agregar todos los documentos del batch a la galería
+    setScannedImages(prev => [...prev, ...batchDocuments]);
   };
 
   const handleImageProcessed = (processedImage) => {
@@ -88,10 +95,18 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Scanner Button */}
+        {/* Smart Scanner */}
         <div className="mb-12">
-          <ScannerButton
-            onImageCapture={handleImageCapture}
+          <SmartScanner
+            onDocumentCapture={handleDocumentCapture}
+            disabled={false}
+          />
+        </div>
+
+        {/* Batch Scanner */}
+        <div className="mb-12">
+          <BatchScanner
+            onBatchComplete={handleBatchComplete}
             disabled={false}
           />
         </div>

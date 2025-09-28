@@ -4,13 +4,29 @@ Una aplicación móvil y web **profesional** para escanear documentos usando la 
 
 ## ✨ Características Profesionales
 
-### 🆕 **Nuevas Funcionalidades Agregadas:**
-- 🎨 **Modo oscuro/claro**: Tema automático con toggle manual
-- 🖼️ **Procesamiento de imágenes**: Filtros profesionales (B/N, contraste, brillo, nitidez)
-- 💾 **Compresión inteligente**: Reduce tamaño de archivos al 80% sin perder calidad
-- 📤 **Compartir avanzado**: Opciones múltiples (WhatsApp, email, sistema, nube)
-- 🔧 **Editor de imágenes**: Interfaz completa de edición antes de guardar
-- ⚡ **Rendimiento optimizado**: Carga diferida y procesamiento eficiente
+### 🆕 **Tecnologías Profesionales Implementadas:**
+
+#### 🤖 **Inteligencia Artificial y Visión por Computadora:**
+- 🔍 **Detección automática de documentos** usando algoritmos de visión por computadora
+- 📐 **Corrección automática de perspectiva** para documentos torcidos
+- ✂️ **Recorte automático inteligente** que elimina fondos innecesarios
+- 🌟 **Mejora automática de imagen** (brillo, contraste, nitidez, balance de color)
+- 📊 **Detección de calidad en tiempo real** con indicador visual
+- 🎯 **Algoritmos de borde** usando filtro de Sobel para detección precisa
+
+#### 📚 **Modo de Escaneo Profesional:**
+- ⚡ **Escaneo por lotes** con captura automática configurable
+- 📷 **Captura manual adicional** durante modo batch
+- ⏱️ **Intervalos configurables** (1-10 segundos)
+- 🔄 **Procesamiento automático** de múltiples documentos
+- 📈 **Indicadores visuales** de progreso y calidad
+
+#### 🎨 **Características Avanzadas:**
+- 🌙 **Modo oscuro/claro automático** con persistencia
+- 🖼️ **Procesamiento avanzado** con 6 filtros profesionales
+- 💾 **Compresión inteligente** (80% reducción sin pérdida visible)
+- 📤 **Sistema de compartir completo** (WhatsApp, email, sistema, nube)
+- 🔧 **Editor integrado** con vista previa en tiempo real
 
 ### ✅ **Características Originales:**
 - 📷 **Escáner de documentos**: Toma fotos de alta calidad (90%) con la cámara del dispositivo
