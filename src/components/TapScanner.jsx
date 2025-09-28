@@ -8,10 +8,21 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
   const [isScanning, setIsScanning] = useState(false);
   const [ocrText, setOcrText] = useState('');
   const [qrResult, setQrResult] = useState('');
+  const [capturedImages, setCapturedImages] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showPreview, setShowPreview] = useState(false);
   const [permissions, setPermissions] = useState({ camera: 'granted' });
   const [showPermissionGuide, setShowPermissionGuide] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [cameraSettings, setCameraSettings] = useState({
+    brightness: 50,
+    contrast: 50,
+    zoom: 50,
+    focus: 'auto'
+  });
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
   const scanModes = [
     {
@@ -108,40 +119,62 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
 
   const captureImage = async () => {
     try {
-      // Intentar capturar directamente sin verificaciones previas estrictas
+      setIsProcessing(true);
+
+      // Capturar la imagen con mejores configuraciones
       const photo = await Camera.getPhoto({
         resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
-        quality: 90,
+        quality: 95,
         allowEditing: false,
         saveToGallery: false,
         width: 1920,
         height: 1080,
-        correctOrientation: true
+        correctOrientation: true,
+        presentationStyle: 'popover'
       });
 
       if (photo.webPath) {
-        console.log('Imagen capturada exitosamente');
+        console.log('Imagen capturada exitosamente:', photo.webPath);
+        setIsProcessing(false);
 
-        // Procesar la imagen
+        // Procesar la imagen con mejor manejo de errores
+        setIsProcessing(true);
         const result = await processImage(photo.webPath, currentMode);
+        setIsProcessing(false);
+
+        console.log('Procesamiento completado:', result);
+
+        // Crear objeto de imagen capturada
+        const capturedImage = {
+          id: Date.now().toString(),
+          path: photo.webPath,
+          processedPath: result.processedPath,
+          mode: currentMode,
+          ocrText: result.text,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            mode: currentMode,
+            hasText: !!result.text,
+            size: result.originalSize,
+            processingTime: Date.now()
+          }
+        };
+
+        // Agregar a la galería local
+        setCapturedImages(prev => [...prev, capturedImage]);
+        setCurrentImageIndex(capturedImages.length);
+        setShowPreview(true);
 
         if (currentMode === 'qr') {
           setQrResult(result.text || 'Código QR detectado');
         } else if (currentMode === 'document' || currentMode === 'id' || currentMode === 'book' || currentMode === 'whiteboard') {
           setOcrText(result.text || 'Procesando texto...');
-          onDocumentCapture({
-            id: Date.now().toString(),
-            path: photo.webPath,
-            processedPath: result.processedPath,
-            mode: currentMode,
-            ocrText: result.text,
-            metadata: {
-              timestamp: new Date().toISOString(),
-              mode: currentMode,
-              hasText: !!result.text
-            }
-          });
+
+          // Notificar al componente padre
+          if (onDocumentCapture) {
+            onDocumentCapture(capturedImage);
+          }
         }
 
         setIsScanning(false);
@@ -149,18 +182,18 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
     } catch (error) {
       console.error('Error capturando imagen:', error);
       setIsScanning(false);
+      setIsProcessing(false);
 
-      // Solo mostrar errores para casos realmente problemáticos
+      // Manejo específico de errores
       if (error.message?.includes('cancelled') || error.code === 'USER_CANCELLED') {
         // Usuario canceló, no mostrar error
         return;
       } else if (error.message?.includes('not available') || error.name === 'NotFoundError') {
-        alert('❌ La cámara no está disponible.\n\n🔧 Solución:\n1. Verifica que tu dispositivo tenga cámara\n2. Cierra otras aplicaciones que usen la cámara');
+        alert('❌ La cámara no está disponible.\n\n🔧 Solución:\n1. Verifica que tu dispositivo tenga cámara\n2. Cierra otras aplicaciones que usen la cámara\n3. Reinicia tu dispositivo');
       } else if (error.message?.includes('Permission denied') || error.name === 'NotAllowedError') {
         alert('❌ Permiso de cámara denegado.\n\n🔧 Solución:\n1. Permite el acceso a la cámara\n2. Recarga la página\n3. Verifica permisos en la configuración');
       } else {
-        // Para otros errores, mostrar mensaje genérico
-        alert('❌ Error capturando imagen. Verifica que la cámara funcione e intenta de nuevo.');
+        alert(`❌ Error capturando imagen: ${error.message || 'Error desconocido'}\n\n🔧 Solución:\n1. Verifica que la cámara funcione\n2. Asegúrate de que no esté en uso por otra aplicación\n3. Reinicia la aplicación`);
       }
     }
   };
@@ -169,50 +202,108 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = async () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = img.width;
-        canvas.height = img.height;
-
-        // Aplicar mejoras según el modo
-        switch (mode) {
-          case 'document':
-            // Mejora automática para documentos
-            ctx.filter = 'contrast(1.2) brightness(1.1)';
-            break;
-          case 'id':
-            // Optimización para IDs
-            ctx.filter = 'contrast(1.3) brightness(1.05) saturate(1.1)';
-            break;
-          case 'whiteboard':
-            // Mejora para pizarras
-            ctx.filter = 'contrast(1.4) brightness(0.9) saturate(1.2)';
-            break;
-          default:
-            ctx.filter = 'none';
-        }
-
-        ctx.drawImage(img, 0, 0);
-
-        const processedPath = canvas.toDataURL('image/jpeg', 0.9);
-
-        // Extraer texto con OCR
-        let extractedText = '';
         try {
-          // Usar Tesseract.js para OCR
-          const Tesseract = (await import('tesseract.js')).default;
-          const { data } = await Tesseract.recognize(img, 'spa+eng');
-          extractedText = data.text;
-        } catch (error) {
-          console.error('Error en OCR:', error);
-        }
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
 
+          // Configurar canvas con mejor resolución
+          canvas.width = img.width;
+          canvas.height = img.height;
+
+          // Limpiar canvas
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Aplicar mejoras profesionales según el modo
+          let filterValue = 'none';
+          switch (mode) {
+            case 'document':
+              // Mejora automática para documentos
+              filterValue = 'contrast(1.3) brightness(1.1) saturate(1.1) blur(0.5px)';
+              break;
+            case 'id':
+              // Optimización para IDs - alta nitidez
+              filterValue = 'contrast(1.4) brightness(1.05) saturate(1.2) blur(0px)';
+              break;
+            case 'whiteboard':
+              // Mejora para pizarras - alto contraste
+              filterValue = 'contrast(1.5) brightness(0.9) saturate(1.3) blur(0.3px)';
+              break;
+            case 'book':
+              // Optimización para libros - balance
+              filterValue = 'contrast(1.2) brightness(1.0) saturate(1.0) blur(0.2px)';
+              break;
+            default:
+              filterValue = 'contrast(1.2) brightness(1.0) saturate(1.1)';
+          }
+
+          ctx.filter = filterValue;
+          ctx.drawImage(img, 0, 0);
+
+          const processedPath = canvas.toDataURL('image/jpeg', 0.95);
+
+          // Extraer texto con OCR mejorado
+          let extractedText = '';
+          try {
+            console.log('Iniciando OCR para modo:', mode);
+            const Tesseract = (await import('tesseract.js')).default;
+
+            // Configuración específica por modo
+            let lang = 'spa+eng';
+            let config = {};
+
+            switch (mode) {
+              case 'document':
+                config = { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?()-áéíóúñÁÉÍÓÚÑ' };
+                break;
+              case 'id':
+                config = { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,-' };
+                break;
+              case 'book':
+                lang = 'spa+eng';
+                config = { tessedit_pageseg_mode: '1' }; // Automatic page segmentation
+                break;
+            }
+
+            const { data } = await Tesseract.recognize(img, lang, config);
+            extractedText = data.text.trim();
+
+            console.log('OCR completado:', extractedText.substring(0, 100) + '...');
+
+            if (!extractedText || extractedText.length < 3) {
+              extractedText = 'No se detectó texto en la imagen. Asegúrate de que el documento esté bien iluminado y enfocado.';
+            }
+
+          } catch (error) {
+            console.error('Error en OCR:', error);
+            extractedText = 'Error procesando el texto. Verifica que la imagen sea clara e intenta de nuevo.';
+          }
+
+          resolve({
+            processedPath,
+            text: extractedText,
+            originalSize: { width: img.width, height: img.height }
+          });
+
+        } catch (error) {
+          console.error('Error procesando imagen:', error);
+          resolve({
+            processedPath: imagePath,
+            text: 'Error procesando la imagen',
+            originalSize: { width: 0, height: 0 }
+          });
+        }
+      };
+
+      img.onerror = () => {
+        console.error('Error cargando imagen para procesamiento');
         resolve({
-          processedPath,
-          text: extractedText
+          processedPath: imagePath,
+          text: 'Error cargando la imagen',
+          originalSize: { width: 0, height: 0 }
         });
       };
+
       img.src = imagePath;
     });
   };
@@ -443,25 +534,75 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
               </div>
             </div>
 
-            {/* Video preview - Diseño profesional */}
-            <div className="relative bg-black rounded-2xl mx-4 mb-4 overflow-hidden">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-auto max-h-[500px] object-contain"
-              />
+            {/* Controles de cámara profesionales */}
+            <div className="mx-4 mb-4">
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl p-4 mb-4">
+                <h4 className="font-semibold text-gray-800 dark:text-white mb-3 flex items-center space-x-2">
+                  <span>🎛️</span>
+                  <span>Controles de Cámara</span>
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Brillo</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={cameraSettings.brightness}
+                      onChange={(e) => setCameraSettings(prev => ({ ...prev, brightness: e.target.value }))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Contraste</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={cameraSettings.contrast}
+                      onChange={(e) => setCameraSettings(prev => ({ ...prev, contrast: e.target.value }))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
 
-              {/* Canvas para overlay */}
-              <canvas
-                ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              />
+              {/* Video preview - Diseño profesional */}
+              <div className="relative bg-black rounded-2xl overflow-hidden">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-auto max-h-[500px] object-contain"
+                  style={{
+                    filter: `brightness(${1 + cameraSettings.brightness / 100}) contrast(${1 + cameraSettings.contrast / 100})`
+                  }}
+                />
 
-              {/* Marco de escaneo animado */}
-              <div className="absolute inset-0 border-2 border-white/50 rounded-2xl">
-                <div className="absolute inset-0 border-2 border-white/20 animate-pulse"></div>
+                {/* Canvas para overlay */}
+                <canvas
+                  ref={canvasRef}
+                  className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                />
+
+                {/* Marco de escaneo animado */}
+                <div className="absolute inset-0 border-2 border-white/50 rounded-2xl">
+                  <div className="absolute inset-0 border-2 border-white/20 animate-pulse"></div>
+                </div>
+
+                {/* Indicador de modo de escaneo */}
+                <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-xl px-3 py-2">
+                  <div className="flex items-center space-x-2 text-white">
+                    <span className="text-xl">{scanModes.find(m => m.id === currentMode)?.icon}</span>
+                    <span className="text-sm font-semibold">{scanModes.find(m => m.id === currentMode)?.name}</span>
+                  </div>
+                </div>
+
+                {/* Indicador de calidad */}
+                <div className="absolute top-4 right-4 bg-green-500/90 backdrop-blur-sm rounded-xl px-3 py-2">
+                  <span className="text-white text-sm font-bold">HD</span>
+                </div>
               </div>
 
               {/* Indicadores específicos por modo - Diseño mejorado */}
@@ -537,10 +678,24 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
                 </button>
                 <button
                   onClick={captureImage}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl font-bold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-2"
+                  disabled={isProcessing}
+                  className={`px-8 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-2 ${
+                    isProcessing
+                      ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                      : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white'
+                  }`}
                 >
-                  <span className="text-xl">📸</span>
-                  <span>Capturar</span>
+                  {isProcessing ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Procesando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl">📸</span>
+                      <span>Capturar</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -552,6 +707,77 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Galería de imágenes capturadas */}
+      {capturedImages.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-700 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white">
+              🖼️
+            </div>
+            <h4 className="font-bold text-blue-800 dark:text-blue-200 text-lg">
+              Imágenes Capturadas ({capturedImages.length})
+            </h4>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+            {capturedImages.map((image, index) => (
+              <div
+                key={image.id}
+                className={`relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden border-2 cursor-pointer transition-all duration-300 hover:scale-105 ${
+                  index === currentImageIndex ? 'border-blue-500 shadow-lg' : 'border-gray-200 dark:border-gray-600'
+                }`}
+                onClick={() => {
+                  setCurrentImageIndex(index);
+                  setOcrText(image.ocrText);
+                  setQrResult(image.mode === 'qr' ? image.ocrText : '');
+                }}
+              >
+                <img
+                  src={image.processedPath || image.path}
+                  alt={`Captura ${index + 1}`}
+                  className="w-full h-24 object-cover"
+                />
+                <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                  <span className="text-white text-xs font-semibold">{image.mode}</span>
+                </div>
+                <div className="absolute top-1 right-1">
+                  <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                    {index + 1}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={() => {
+                // Limpiar todas las imágenes
+                setCapturedImages([]);
+                setOcrText('');
+                setQrResult('');
+                setShowPreview(false);
+              }}
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white rounded-xl font-semibold transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center space-x-2"
+            >
+              <span>🗑️</span>
+              <span>Limpiar Todo</span>
+            </button>
+            <button
+              onClick={() => {
+                if (onDocumentCapture) {
+                  onDocumentCapture(capturedImages);
+                }
+              }}
+              className="px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold transition-all duration-300 hover:scale-105 shadow-lg flex items-center justify-center space-x-2"
+            >
+              <span>📄</span>
+              <span>Generar PDF</span>
+            </button>
           </div>
         </div>
       )}
@@ -568,7 +794,7 @@ export default function TapScanner({ onDocumentCapture, disabled = false }) {
             </h4>
           </div>
 
-          <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 mb-4 border border-green-100 dark:border-green-800">
+          <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-4 mb-4 border border-green-100 dark:border-green-800 max-h-40 overflow-y-auto">
             <p className="text-green-700 dark:text-green-300 text-sm leading-relaxed">
               {ocrText}
             </p>
