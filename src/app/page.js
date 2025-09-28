@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import SmartScanner from '../components/SmartScanner';
-import BatchScanner from '../components/BatchScanner';
+import TapScanner from '../components/TapScanner';
 import PermissionHandler from '../components/PermissionHandler';
 import ImageGallery from '../components/ImageGallery';
 import PDFGenerator from '../components/PDFGenerator';
@@ -97,18 +96,10 @@ export default function Home() {
 
         {/* Main Content */}
         <main className="max-w-6xl mx-auto px-4 py-8">
-          {/* Smart Scanner */}
+          {/* TapScanner - Escáner Profesional */}
           <div className="mb-12">
-            <SmartScanner
+            <TapScanner
               onDocumentCapture={handleDocumentCapture}
-              disabled={false}
-            />
-          </div>
-
-          {/* Batch Scanner */}
-          <div className="mb-12">
-            <BatchScanner
-              onBatchComplete={handleBatchComplete}
               disabled={false}
             />
           </div>

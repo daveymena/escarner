@@ -13,10 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Mi Escáner PDF - Escanea y genera PDFs",
-  description: "Aplicación profesional para escanear documentos con la cámara y generar archivos PDF de alta calidad",
-  keywords: "escáner, PDF, documentos, cámara, móvil, web",
-  authors: [{ name: "Mi Escáner PDF" }],
+  title: "TapScanner Pro - Escáner Profesional con IA",
+  description: "Aplicación profesional para escanear documentos, IDs, códigos QR y libros con reconocimiento OCR integrado y filtros avanzados",
+  keywords: "escáner, PDF, OCR, documentos, ID, QR, libros, cámara, móvil, web, IA, inteligencia artificial",
+  authors: [{ name: "TapScanner Pro" }],
   viewport: "width=device-width, initial-scale=1",
 };
 

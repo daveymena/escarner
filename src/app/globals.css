@@ -69,3 +69,114 @@ body {
 .dark .text-gray-800 {
   color: #f9fafb !important;
 }
+
+/* Estilos adicionales para TapScanner Pro */
+.tapscanner-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.tapscanner-card {
+  background: linear-gradient(145deg, #ffffff, #f8fafc);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dark .tapscanner-card {
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+.tapscanner-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 15px 0 rgba(116, 79, 168, 0.25);
+  transition: all 0.3s ease;
+}
+
+.tapscanner-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px 0 rgba(116, 79, 168, 0.35);
+}
+
+.tapscanner-modal {
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/* Animaciones personalizadas */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 2s infinite;
+}
+
+/* Mejoras para video */
+.tapscanner-video {
+  border-radius: 1rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Indicadores de modo */
+.mode-indicator {
+  position: relative;
+}
+
+.mode-indicator::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+/* Efectos de hover mejorados */
+.tapscanner-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tapscanner-hover:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+/* Gradientes personalizados */
+.gradient-purple-blue {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-blue-purple {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+}
+
+.gradient-green-emerald {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.gradient-orange-red {
+  background: linear-gradient(135deg, #f97316 0%, #dc2626 100%);
+}
+
+.gradient-indigo-purple {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+}
