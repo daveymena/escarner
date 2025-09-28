@@ -37,27 +37,46 @@ export default function SmartScanner({ onDocumentCapture, disabled = false }) {
     try {
       setIsScanning(true);
 
-      // Solicitar permisos de cámara
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      });
+      // Verificar permisos primero
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          // Solicitar permisos de cámara
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          });
 
-      setPreviewStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+          setPreviewStream(stream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+
+          // Iniciar detección automática
+          startDocumentDetection();
+        } catch (permissionError) {
+          console.error('Error de permisos:', permissionError);
+          setIsScanning(false);
+
+          if (permissionError.name === 'NotAllowedError') {
+            alert('Permiso de cámara denegado. Ve a la configuración de tu navegador o dispositivo y permite el acceso a la cámara.');
+          } else if (permissionError.name === 'NotFoundError') {
+            alert('No se encontró ninguna cámara. Verifica que tu dispositivo tenga cámara.');
+          } else {
+            alert('Error accediendo a la cámara. Verifica que la cámara no esté siendo usada por otra aplicación.');
+          }
+        }
+      } else {
+        setIsScanning(false);
+        alert('Tu navegador no soporta acceso a cámara. Usa una versión más reciente o prueba en otro navegador.');
       }
 
-      // Iniciar detección automática
-      startDocumentDetection();
-
     } catch (error) {
-      console.error('Error accediendo a cámara:', error);
+      console.error('Error general accediendo a cámara:', error);
       setIsScanning(false);
-      alert('Error accediendo a la cámara. Verifica permisos.');
+      alert('Error inesperado accediendo a la cámara. Inténtalo de nuevo.');
     }
   };
 

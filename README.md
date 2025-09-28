@@ -223,27 +223,82 @@ El archivo `capacitor.config.ts` está configurado con:
 
 ## 🚨 Solución de Problemas
 
-### Problemas comunes:
+### ⚠️ **Problema Principal: "Error accediendo a la verificacion" en Móvil**
 
-**1. Error de permisos de cámara:**
-- Asegúrate de que la aplicación tenga permisos de cámara
-- En desarrollo web: Usa HTTPS o localhost
-- En móvil: Verifica permisos en configuración del dispositivo
+**Solución Paso a Paso:**
 
-**2. Error al guardar archivos:**
-- Verifica permisos de almacenamiento
-- Asegúrate de que haya espacio suficiente
-
-**3. Error al generar PDF:**
-- Verifica que las imágenes sean válidas
-- Asegúrate de que jsPDF esté instalado correctamente
-
-**4. Problemas con Capacitor:**
+1. **Reconstruir la aplicación:**
 ```bash
-# Limpiar y reconstruir
 npx cap clean
 npx cap sync
+npx cap open android
 ```
+
+2. **En Android Studio:**
+- `File > Sync Project with Gradle Files`
+- `Build > Clean Project`
+- `Build > Rebuild Project`
+- Ejecutar en dispositivo
+
+3. **En configuración del dispositivo:**
+- Configuración > Aplicaciones > Mi Escáner PDF
+- Permisos > Cámara: **Permitir**
+- Permisos > Almacenamiento: **Permitir**
+- Permisos > Archivos y medios: **Permitir todo**
+
+4. **Si persiste el error:**
+```bash
+# Desinstalar completamente y reinstalar
+npx cap clean
+rm -rf android/
+npx cap add android
+npx cap sync
+npx cap open android
+```
+
+### 🔧 **Permisos Configurados:**
+
+**Android (AndroidManifest.xml):**
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+```
+
+### 📱 **Problemas comunes en móvil:**
+
+**1. Error de permisos de cámara:**
+- Desinstala y reinstala la app para resetear permisos
+- En Android 13+: Otorga permisos de "Fotos y videos"
+- Verifica que la cámara no esté siendo usada por otra app
+
+**2. Error al guardar archivos:**
+- Libera espacio en el dispositivo
+- Verifica permisos de almacenamiento
+- Reinicia el dispositivo
+
+**3. Error al generar PDF:**
+- Asegúrate de tener suficiente espacio
+- Verifica que las imágenes no estén corruptas
+- Reinicia la aplicación
+
+**4. Cámara no disponible:**
+- Reinicia el dispositivo
+- Verifica en modo seguro
+- Cierra otras aplicaciones que usen cámara
+
+### 🌐 **Problemas en Web:**
+
+**1. Permisos de navegador:**
+- Usa HTTPS o localhost
+- Permite cámara cuando el navegador lo solicite
+- En Chrome: Haz clic en el ícono de cámara en la barra de direcciones
+
+**2. Cámara no detectada:**
+- Usa una versión reciente del navegador
+- Verifica que la cámara no esté siendo usada por otra aplicación
+- Prueba en modo incógnito
 
 ## 📝 Personalización
 
